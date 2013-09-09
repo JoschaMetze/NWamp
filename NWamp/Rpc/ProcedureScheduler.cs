@@ -1,7 +1,9 @@
 ﻿using NWamp.Messages;
 using NWamp.Transport;
 using System;
+#if !WINDOWS_PHONE
 using System.Collections.Concurrent;
+#endif
 using System.Threading.Tasks;
 
 namespace NWamp.Rpc
@@ -24,7 +26,11 @@ namespace NWamp.Rpc
         /// <summary>
         /// Collection of <see cref="Task"/> objects, handling RPC which are currently executing.
         /// </summary>
+#if !WINDOWS_PHONE
         protected ConcurrentDictionary<string, Task> Tasks;
+#else
+        protected SynchronizedCache<string,Task> Tasks;
+#endif
 
         /// <summary>
         /// Initializes a new instance of the <see cref="ProcedureScheduler"/> class.
@@ -35,7 +41,11 @@ namespace NWamp.Rpc
         {
             Response = responseQueue;
             TypeResolver = typeResolver;
+#if !WINDOWS_PHONE
             Tasks = new ConcurrentDictionary<string, Task>();
+#else
+            Tasks = new SynchronizedCache<string, Task>();
+#endif
         }
 
         /// <summary>

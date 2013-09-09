@@ -12,14 +12,21 @@ namespace NWamp.Transport
         /// <summary>
         /// Internal queue used for storing and retrieving connections.
         /// </summary>
+#if !WINDOWS_PHONE
         private readonly BlockingCollection<Tuple<string, IMessage>> _queue;
-
+#else
+        private readonly ConcurrentQueue<Tuple<string, IMessage>> _queue;
+#endif
         /// <summary>
         /// Initializes a new instance of the <see cref="SocketResponseQueue"/> class.
         /// </summary>
         public SocketResponseQueue()
         {
+#if !WINDOWS_PHONE
             _queue = new BlockingCollection<Tuple<string, IMessage>>();
+#else
+            _queue = new ConcurrentQueue<Tuple<string, IMessage>>();
+#endif
         }
 
         /// <summary>

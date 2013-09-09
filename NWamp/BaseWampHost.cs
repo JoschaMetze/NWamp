@@ -100,7 +100,9 @@ namespace NWamp
         {
             if (_senderTask != null)
             {
+#if !NETFX_CORE && !WINDOWS_PHONE
                 _senderTask.Dispose();
+#endif
                 _senderTask = null;
             }
         }

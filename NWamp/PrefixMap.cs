@@ -22,7 +22,11 @@ namespace NWamp
             set
             {
                 if (!Uri.IsWellFormedUriString(value, UriKind.RelativeOrAbsolute))
+#if NETFX_CORE
+                    throw new Exception("Uri parameter is not well formed uri string");
+#else
                     throw new UriFormatException("Uri parameter is not well formed uri string");
+#endif
 
                 _defaultUri = value;
             }
@@ -65,7 +69,11 @@ namespace NWamp
             : this(mappings)
         {
             if (!Uri.IsWellFormedUriString(defaulUri, UriKind.RelativeOrAbsolute))
+                #if NETFX_CORE
+                throw new Exception("Uri parameter is not well formed uri string");
+#else
                 throw new UriFormatException("Uri parameter is not well formed uri string");
+#endif
 
             FaultTolerant = true;
             DefaultUri = defaulUri;
@@ -83,7 +91,11 @@ namespace NWamp
         public bool SetPrefix(string prefix, string uri)
         {
             if (!Uri.IsWellFormedUriString(uri, UriKind.RelativeOrAbsolute))
+#if NETFX_CORE
+                throw new Exception("Uri parameter is not well formed uri string");
+#else
                 throw new UriFormatException("Uri parameter is not well formed uri string");
+#endif
 
             if (_mappings.ContainsKey(prefix))
             {

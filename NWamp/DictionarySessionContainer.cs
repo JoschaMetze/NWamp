@@ -1,5 +1,7 @@
 ﻿using System.Collections;
+#if !WINDOWS_PHONE
 using System.Collections.Concurrent;
+#endif
 using NWamp.Transport;
 using System.Collections.Generic;
 
@@ -13,7 +15,11 @@ namespace NWamp
         /// <summary>
         /// Internal dictionary used for storing WAMP sessions.
         /// </summary>
+#if !WINDOWS_PHONE
         private readonly IDictionary<string, IWampSession> _sessions = new ConcurrentDictionary<string, IWampSession>();
+#else
+        private readonly SynchronizedCache<string, IWampSession> _sessions = new SynchronizedCache<string, IWampSession>();
+#endif
 
         /// <summary>
         /// Stores new WAMP session.
@@ -47,7 +53,11 @@ namespace NWamp
 
         public IEnumerator<IWampSession> GetEnumerator()
         {
+#if !WINDOWS_PHONE
             return _sessions.Values.GetEnumerator();
+#else
+            return _sessions.GetValueEnumerator();
+#endif
         }
 
         IEnumerator IEnumerable.GetEnumerator()
