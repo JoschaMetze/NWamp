@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Linq;
+using System.Threading;
 using System.Threading.Tasks;
 using NWamp.Messages;
 using NWamp.Messages.Handlers;
@@ -7,6 +8,7 @@ using NWamp.Rpc;
 using NWamp.Topics;
 using NWamp.Transport;
 using System.Collections.Generic;
+
 
 namespace NWamp
 {
@@ -19,6 +21,11 @@ namespace NWamp
         /// Sender task used for checking if ResponseQueue has some message to send and sending them.
         /// </summary>
         private Task _senderTask;
+
+        /// <summary>
+        /// Cancellation token for stopping the sender task
+        /// </summary>
+        private CancellationTokenSource _cancelToken;
 
         /// <summary>
         /// Message provider used for message serialization and deserialization.
@@ -90,7 +97,8 @@ namespace NWamp
         /// </summary>
         public virtual void Start()
         {
-            _senderTask = Task.Factory.StartNew(SendMessages);
+            _cancelToken = new CancellationTokenSource();
+            _senderTask = Task.Factory.StartNew(SendMessages,_cancelToken.Token);
         }
 
         /// <summary>
@@ -100,6 +108,7 @@ namespace NWamp
         {
             if (_senderTask != null)
             {
+                _cancelToken.Cancel();
 #if !NETFX_CORE && !WINDOWS_PHONE
                 _senderTask.Dispose();
 #endif
@@ -290,6 +299,9 @@ namespace NWamp
         {
             while (true)
             {
+                if (_cancelToken != null && !_cancelToken.Token.IsCancellationRequested)
+                    _cancelToken.Token.ThrowIfCancellationRequested();
+
                 var incoming = ResponseQueue.Receive();
                 var session = Sessions.GetSession(incoming.Item1);
                 var json = MessageProvider.SerializeMessage(incoming.Item2);
