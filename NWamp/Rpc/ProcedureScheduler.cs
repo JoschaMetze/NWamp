@@ -73,6 +73,7 @@ namespace NWamp.Rpc
                 });
             }
         }
+        //Method to handle async results
         private static void ContinueAsync<T>(Task<T> task, TaskCompletionSource<object> tcs)
         {
             task.ContinueWith(t =>
@@ -108,25 +109,34 @@ namespace NWamp.Rpc
                         var func = context.ProcedureDefinition.ProcedureCall;
                         var args = context.Arguments;
                         var result = func(args);
+                        //make sure to handle async results correctly
 
                         if (result != null && result.GetType() == typeof(Task))
                         {
                             (result as Task).ContinueWith((task) =>
                             {
-                        message = CreateResultMessage(context, result);
+                                message = CreateResultMessage(context, result);
                                 Response.Send(context.RequesterSession.SessionId, message);
                             });
                         }
                         else if (result != null && result.GetType().IsGenericType && result.GetType().GetGenericTypeDefinition().BaseType == typeof(Task))
                         {
+
                             TaskCompletionSource<object> tcs = new TaskCompletionSource<object>();
                             Type resultType = result.GetType().GetGenericArguments().Single();
+
                             Type genericTaskType = typeof(Task<>).MakeGenericType(resultType);
+
+
                             var parameter = Expression.Parameter(typeof(object), "object");
+
+
                             MethodInfo continueWithMethod = typeof(ProcedureScheduler).GetMethod("ContinueAsync", BindingFlags.NonPublic | BindingFlags.Static).MakeGenericMethod(resultType);
+
                             Expression body = Expression.Call(continueWithMethod,
                                                               Expression.Convert(parameter, genericTaskType),
                                                               Expression.Constant(tcs));
+
                             var continueWithInvoker = Expression.Lambda<Action<object>>(body, parameter).Compile();
                             continueWithInvoker.Invoke(result);
                             tcs.Task.ContinueWith((task) =>
@@ -136,6 +146,7 @@ namespace NWamp.Rpc
                                     Exception exc = task.Exception.InnerException;
                                     if (exc.InnerException != null)
                                         exc = exc.InnerException;
+
                                     message = CreateErrorMessage(context, exc);
                                     Response.Send(context.RequesterSession.SessionId, message);
                                 }
@@ -145,6 +156,7 @@ namespace NWamp.Rpc
                                     Response.Send(context.RequesterSession.SessionId, message);
                                 }
                             });
+
                         }
                         else
                         {
