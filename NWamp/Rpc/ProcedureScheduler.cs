@@ -5,6 +5,9 @@ using System;
 using System.Collections.Concurrent;
 #endif
 using System.Threading.Tasks;
+using System.Linq.Expressions;
+using System.Reflection;
+using System.Linq;
 
 namespace NWamp.Rpc
 {
@@ -70,6 +73,24 @@ namespace NWamp.Rpc
                 });
             }
         }
+        private static void ContinueAsync<T>(Task<T> task, TaskCompletionSource<object> tcs)
+        {
+            task.ContinueWith(t =>
+            {
+                if (t.IsCanceled)
+                {
+                    tcs.TrySetCanceled();
+                }
+                else if (t.IsFaulted)
+                {
+                    tcs.TrySetException(t.Exception);
+                }
+                else
+                {
+                    tcs.TrySetResult(t.Result);
+                }
+            });
+        }
 
         /// <summary>
         /// Returns a delegate used for handling RPC invoke flow, 
@@ -88,13 +109,55 @@ namespace NWamp.Rpc
                         var args = context.Arguments;
                         var result = func(args);
 
+                        if (result != null && result.GetType() == typeof(Task))
+                        {
+                            (result as Task).ContinueWith((task) =>
+                            {
                         message = CreateResultMessage(context, result);
+                                Response.Send(context.RequesterSession.SessionId, message);
+                            });
+                        }
+                        else if (result != null && result.GetType().IsGenericType && result.GetType().GetGenericTypeDefinition().BaseType == typeof(Task))
+                        {
+                            TaskCompletionSource<object> tcs = new TaskCompletionSource<object>();
+                            Type resultType = result.GetType().GetGenericArguments().Single();
+                            Type genericTaskType = typeof(Task<>).MakeGenericType(resultType);
+                            var parameter = Expression.Parameter(typeof(object), "object");
+                            MethodInfo continueWithMethod = typeof(ProcedureScheduler).GetMethod("ContinueAsync", BindingFlags.NonPublic | BindingFlags.Static).MakeGenericMethod(resultType);
+                            Expression body = Expression.Call(continueWithMethod,
+                                                              Expression.Convert(parameter, genericTaskType),
+                                                              Expression.Constant(tcs));
+                            var continueWithInvoker = Expression.Lambda<Action<object>>(body, parameter).Compile();
+                            continueWithInvoker.Invoke(result);
+                            tcs.Task.ContinueWith((task) =>
+                            {
+                                if (task.IsFaulted)
+                                {
+                                    Exception exc = task.Exception.InnerException;
+                                    if (exc.InnerException != null)
+                                        exc = exc.InnerException;
+                                    message = CreateErrorMessage(context, exc);
+                                    Response.Send(context.RequesterSession.SessionId, message);
+                                }
+                                else
+                                {
+                                    message = CreateResultMessage(context, task.Result);
+                                    Response.Send(context.RequesterSession.SessionId, message);
+                                }
+                            });
+                        }
+                        else
+                        {
+                            message = CreateResultMessage(context, result);
+                            Response.Send(context.RequesterSession.SessionId, message);
+                        }
                     }
                     catch (Exception e)
                     {
                         message = CreateErrorMessage(context, e);
+                        Response.Send(context.RequesterSession.SessionId, message);
                     }
-                    Response.Send(context.RequesterSession.SessionId, message);
+                    
                 };
 
             return action;
