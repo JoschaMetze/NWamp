@@ -119,20 +119,29 @@ namespace NWamp.Rpc
                                 Response.Send(context.RequesterSession.SessionId, message);
                             });
                         }
+#if NETFX_CORE
+                        else if (result != null && result.GetType().GetTypeInfo().IsGenericType && result.GetType().GetTypeInfo().GetGenericTypeDefinition().GetTypeInfo().BaseType == typeof(Task))
+#else
                         else if (result != null && result.GetType().IsGenericType && result.GetType().GetGenericTypeDefinition().BaseType == typeof(Task))
+#endif
                         {
 
                             TaskCompletionSource<object> tcs = new TaskCompletionSource<object>();
+#if NETFX_CORE
+                            Type resultType = result.GetType().GetTypeInfo().GenericTypeArguments.Single();
+#else
                             Type resultType = result.GetType().GetGenericArguments().Single();
-
+#endif
                             Type genericTaskType = typeof(Task<>).MakeGenericType(resultType);
 
 
                             var parameter = Expression.Parameter(typeof(object), "object");
 
-
+#if NETFX_CORE
+                            MethodInfo continueWithMethod = typeof(ProcedureScheduler).GetTypeInfo().GetDeclaredMethod("ContinueAsync").MakeGenericMethod(resultType);
+#else
                             MethodInfo continueWithMethod = typeof(ProcedureScheduler).GetMethod("ContinueAsync", BindingFlags.NonPublic | BindingFlags.Static).MakeGenericMethod(resultType);
-
+#endif
                             Expression body = Expression.Call(continueWithMethod,
                                                               Expression.Convert(parameter, genericTaskType),
                                                               Expression.Constant(tcs));
